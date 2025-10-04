@@ -56,21 +56,32 @@ class OCRService {
       category: null
     };
 
-    // Extract amount (various currency formats)
-    const amountRegex = /(?:[\$£€¥₹]|USD|EUR|GBP|INR)\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/gi;
-    const amountMatch = text.match(amountRegex);
-    if (amountMatch && amountMatch.length > 0) {
-      extractedData.amount = parseFloat(amountMatch[0].replace(/[^\d.]/g, ''));
+    // Extract amount (look for lines with 'total', 'amount', etc. first for accuracy)
+    const amountRegex = /(?:total|amount|due|balance)[\s:]*.*?([\$\£\€\¥\₹]?\s*\d+(?:,\d{3})*(?:\.\d{2}))/i;
+    let amountMatch = text.match(amountRegex);
+    if (amountMatch && amountMatch[1]) {
+      extractedData.amount = parseFloat(amountMatch[1].replace(/[^\d.]/g, ''));
+    } else {
+      // Fallback to finding any currency value if total is not found
+      const genericAmountRegex = /([\$\£\€\¥\₹]\s*\d+(?:,\d{3})*(?:\.\d{2})?)/;
+      amountMatch = text.match(genericAmountRegex);
+      if (amountMatch && amountMatch[1]) {
+        extractedData.amount = parseFloat(amountMatch[1].replace(/[^\d.]/g, ''));
+      }
     }
 
-    // Extract date
-    const dateRegex = /(\d{1,2}[-/]\d{1,2}[-/]\d{2,4}|\d{4}[-/]\d{1,2}[-/]\d{1,2})/g;
+    // Improved date extraction
+    const dateRegex = /(\d{1,2}[-/.\s](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-/.\s]\d{2,4})|(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})|(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/i;
     const dateMatch = text.match(dateRegex);
-    if (dateMatch && dateMatch.length > 0) {
-      extractedData.date = new Date(dateMatch[0]);
+    if (dateMatch && dateMatch[0]) {
+      // Attempt to create a valid date from the matched string
+      const parsedDate = new Date(dateMatch[0].replace(/\s/g, '-'));
+      if (!isNaN(parsedDate)) {
+          extractedData.date = parsedDate;
+      }
     }
 
-    // Extract merchant name (first line often contains merchant name)
+    // Extract merchant name
     const lines = text.split('\n').filter(line => line.trim().length > 0);
     if (lines.length > 0) {
       extractedData.merchant = lines[0].trim();
@@ -78,7 +89,7 @@ class OCRService {
 
     // Categorize based on keywords
     const categoryKeywords = {
-      'food': ['restaurant', 'cafe', 'food', 'dining', 'pizza', 'burger'],
+      'food': ['restaurant', 'cafe', 'food', 'dining', 'pizza', 'burger', 'bistro', 'lunch'],
       'travel': ['airline', 'flight', 'hotel', 'taxi', 'uber', 'lyft'],
       'office_supplies': ['office', 'supplies', 'staples', 'paper'],
       'transportation': ['gas', 'fuel', 'parking', 'metro', 'bus']
