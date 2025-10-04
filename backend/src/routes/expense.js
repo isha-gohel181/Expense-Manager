@@ -6,6 +6,14 @@ const upload = require('../middleware/upload');
 
 const router = express.Router();
 
+// New route for real-time OCR processing
+router.post(
+  '/process-receipt',
+  auth,
+  upload.single('receipt'),
+  ExpenseController.processReceiptForOcr
+);
+
 // Employee routes
 router.post(
   '/',
