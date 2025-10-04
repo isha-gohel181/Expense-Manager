@@ -5,14 +5,45 @@ const OCRService = require('../services/ocrService');
 const ApprovalService = require('../services/approvalService');
 
 class ExpenseController {
+  // New function to handle real-time OCR
+  static async processReceiptForOcr(req, res) {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No receipt file uploaded' });
+      }
+
+      const ocrResult = await OCRService.processReceipt(req.file.path);
+
+      res.status(200).json({
+        message: 'Receipt processed successfully',
+        ocrData: ocrResult.extractedData,
+      });
+    } catch (error) {
+      console.error('OCR processing error:', error);
+      res.status(500).json({ message: 'Failed to process receipt' });
+    }
+  }
+
   static async createExpense(req, res) {
     try {
+      console.log('Request body:', req.body);
       const { amount, currency, category, description, expenseDate } = req.body;
       const employee = req.user;
 
+      // Validate required fields
+      if (!amount || !currency || !category || !description || !expenseDate) {
+        return res.status(400).json({ message: 'All fields are required' });
+      }
+
+      // Validate amount
+      const numAmount = parseFloat(amount);
+      if (isNaN(numAmount) || numAmount <= 0) {
+        return res.status(400).json({ message: 'Invalid amount' });
+      }
+
       // Convert amount to company currency
       const convertedAmount = await CurrencyService.convertCurrency(
-        amount,
+        numAmount,
         currency,
         employee.company.currency.code
       );
@@ -21,7 +52,7 @@ class ExpenseController {
         employee: employee._id,
         company: employee.company._id,
         amount: {
-          value: amount,
+          value: numAmount,
           currency: currency
         },
         convertedAmount: {
